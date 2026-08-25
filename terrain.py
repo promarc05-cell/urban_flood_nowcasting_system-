@@ -49,3 +49,39 @@ print("Terrain elevation:")
 
 for row in dem:
     print(row)
+
+def calculate_accumulation(runoff_grid):
+    """
+    Calculate how runoff accumulates as it flows downhill.
+
+    runoff_grid must have the same dimensions as the DEM.
+    """
+
+    rows = len(dem)
+    cols = len(dem[0])
+
+    # Start with the local runoff at every cell
+    accumulation = [
+        row[:] for row in runoff_grid
+    ]
+
+    # Process higher cells before lower cells
+    cells = []
+
+    for row in range(rows):
+        for col in range(cols):
+            cells.append((dem[row][col], row, col))
+
+    cells.sort(reverse=True)
+
+    # Send accumulated water to the next lower cell
+    for elevation, row, col in cells:
+
+        flow_cell = get_flow_direction(row, col)
+
+        if flow_cell is not None:
+            next_row, next_col = flow_cell
+
+            accumulation[next_row][next_col] += accumulation[row][col]
+
+    return accumulation
