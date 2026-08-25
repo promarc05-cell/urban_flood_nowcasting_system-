@@ -7,6 +7,45 @@ dem = [
     [90,  92,  94,  97]
 ]
 
+
+def get_flow_direction(row, col):
+    """
+    Find the lowest neighboring cell for a given DEM cell.
+    """
+
+    rows = len(dem)
+    cols = len(dem[0])
+
+    current_elevation = dem[row][col]
+
+    lowest_elevation = current_elevation
+    flow_cell = None
+
+    # Check all 8 neighboring cells
+    for dr in [-1, 0, 1]:
+        for dc in [-1, 0, 1]:
+
+            # Skip the current cell
+            if dr == 0 and dc == 0:
+                continue
+
+            new_row = row + dr
+            new_col = col + dc
+
+            # Make sure the neighbor is inside the DEM
+            if 0 <= new_row < rows and 0 <= new_col < cols:
+
+                neighbor_elevation = dem[new_row][new_col]
+
+                # Find a lower neighboring cell
+                if neighbor_elevation < lowest_elevation:
+                    lowest_elevation = neighbor_elevation
+                    flow_cell = (new_row, new_col)
+
+    return flow_cell
+
+
 print("Terrain elevation:")
+
 for row in dem:
     print(row)
