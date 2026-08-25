@@ -85,3 +85,34 @@ def calculate_accumulation(runoff_grid):
             accumulation[next_row][next_col] += accumulation[row][col]
 
     return accumulation
+
+def calculate_runoff_accumulation(runoff_grid, flow_directions):
+    rows = len(runoff_grid)
+    cols = len(runoff_grid[0])
+
+    accumulation = [
+        row[:] for row in runoff_grid
+    ]
+
+    # Process cells from higher elevation toward lower elevation
+    cells = []
+
+    for r in range(rows):
+        for c in range(cols):
+            cells.append((r, c))
+
+    # Higher elevation cells should flow first
+    cells.sort(
+        key=lambda cell: dem[cell[0]][cell[1]],
+        reverse=True
+    )
+
+    for r, c in cells:
+        direction = flow_directions[r][c]
+
+        if direction is not None:
+            nr, nc = direction
+
+            accumulation[nr][nc] += accumulation[r][c]
+
+    return accumulation
