@@ -25,21 +25,23 @@ def calculate_runoff(rainfall_mm, runoff_coefficient):
     return runoff_mm
 
 
-# Get rainfall data from database
-rainfall_data = get_rainfall_data()
+# Test
+if __name__ == "__main__":
 
-# Simple prototype coefficient
-runoff_coefficient = 0.8
+    # Get rainfall data from database
+    rainfall_data = get_rainfall_data()
 
+    # Simple prototype coefficient
+    runoff_coefficient = 0.8
 
-# Calculate runoff for each rainfall record
-for time, location, rainfall in rainfall_data:
+    # Calculate runoff for each rainfall record
+    for time, location, rainfall in rainfall_data:
 
-    runoff = calculate_runoff(rainfall, runoff_coefficient)
+        runoff = calculate_runoff(rainfall, runoff_coefficient)
 
-    print(
-        time,
-        location,
-        "Rainfall:", rainfall, "mm",
-        "Runoff:", runoff, "mm"
-    )
+        print(
+            time,
+            location,
+            "Rainfall:", rainfall, "mm",
+            "Runoff:", runoff, "mm"
+        )

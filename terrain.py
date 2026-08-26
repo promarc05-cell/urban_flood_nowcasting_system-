@@ -45,10 +45,13 @@ def get_flow_direction(row, col):
     return flow_cell
 
 
-print("Terrain elevation:")
+# Test
+if __name__ == "__main__":
 
-for row in dem:
-    print(row)
+    print("Terrain elevation:")
+
+    for row in dem:
+        print(row)
 
 def calculate_accumulation(runoff_grid):
     """

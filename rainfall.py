@@ -18,7 +18,9 @@ def get_rainfall_data():
 
 
 # Test
-rainfall = get_rainfall_data()
+if __name__ == "__main__":
 
-for row in rainfall:
-    print(row)
+    rainfall_data = get_rainfall_data()
+
+    for row in rainfall_data:
+        print(row)
