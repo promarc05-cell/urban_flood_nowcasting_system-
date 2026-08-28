@@ -1,8 +1,11 @@
 def forecast_rainfall(rainfall_values):
     """
-    Forecast rainfall using the average
-    of the most recent 3 rainfall values.
+    Forecast rainfall using the average of the
+    most recent 3 rainfall observations.
     """
+
+    if len(rainfall_values) == 0:
+        return 0
 
     recent_values = rainfall_values[-3:]
 
@@ -13,16 +16,41 @@ def forecast_rainfall(rainfall_values):
 
 def forecast_next_3_hours(rainfall_values):
     """
-    Generate rainfall forecasts for the next 3 hours.
+    Generate a simple trend-aware rainfall forecast
+    for the next 3 hours.
+
+    The recent average is used as the baseline.
+    A fraction of the recent rainfall trend is then
+    applied to each future hour.
     """
 
-    forecast = forecast_rainfall(rainfall_values)
+    if len(rainfall_values) == 0:
+        return [0, 0, 0]
 
-    forecasts = [
-        forecast,
-        forecast,
-        forecast
-    ]
+    baseline = forecast_rainfall(rainfall_values)
+
+    if len(rainfall_values) >= 2:
+
+        latest = rainfall_values[-1]
+        previous = rainfall_values[-2]
+
+        trend = latest - previous
+
+    else:
+
+        trend = 0
+
+    forecasts = []
+
+    for hour in range(1, 4):
+
+        # Apply only 25% of the recent trend per hour.
+        forecast = baseline + (trend * 0.25 * hour)
+
+        # Rainfall cannot be negative.
+        forecast = max(forecast, 0)
+
+        forecasts.append(forecast)
 
     return forecasts
 
@@ -37,4 +65,11 @@ if __name__ == "__main__":
     print("Next 3 hour rainfall forecast:")
 
     for hour, value in enumerate(forecasts, start=1):
-        print("Hour", hour, ":", value, "mm")
+
+        print(
+            "Hour",
+            hour,
+            ":",
+            round(value, 2),
+            "mm"
+        )
