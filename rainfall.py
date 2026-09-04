@@ -8,6 +8,7 @@ def get_rainfall_data():
     cursor.execute("""
     SELECT time, location, rainfall_mm
     FROM rainfall
+    ORDER BY time ASC
     """)
 
     data = cursor.fetchall()
