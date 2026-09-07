@@ -1,141 +1,307 @@
-from rainfall import get_rainfall_data
-from forecast import forecast_next_3_hours
-from runoff import calculate_runoff
-from terrain import calculate_accumulation
-from drainage import calculate_excess_water
-from flood import calculate_flood_risk, calculate_flood_depth
+# main.py
+
+from rainfall import (
+    get_spatial_rainfall_forecast,
+    validate_rainfall_forecast
+)
+
+from runoff import calculate_spatial_runoff
+
+from terrain import (
+    DEM,
+    calculate_flow_direction,
+    calculate_accumulation,
+    print_dem,
+    print_flow_direction,
+    print_accumulation_grid
+)
+
+from drainage import (
+    DRAINAGE_CAPACITY_GRID,
+    calculate_excess_water,
+    print_drainage_capacity,
+    print_excess_water
+)
+
+from flood import (
+    calculate_flood_risk,
+    calculate_flood_depth,
+    calculate_risk_score,
+    print_risk_grid,
+    print_depth_grid,
+    print_risk_score_grid
+)
+
+from routing import (
+    find_safest_route,
+    calculate_route_summary,
+    print_route
+)
 
 
-print("======================================")
-print("   URBAN FLOOD NOWCASTING SYSTEM")
-print("======================================")
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+# Prototype conversion factor.
+# This is NOT a calibrated hydraulic relationship.
+DEPTH_FACTOR = 0.01
 
 
-# -----------------------------------
-# Step 1: Get rainfall data
-# -----------------------------------
+# Example routing locations.
+# Format: (row, column)
 
-rainfall_data = get_rainfall_data()
-
-print("\nRainfall data:")
-
-for record in rainfall_data:
-    print(record)
+ROUTE_START = (3, 0)
+ROUTE_DESTINATION = (0, 3)
 
 
-# -----------------------------------
-# Step 2: Extract rainfall values
-# -----------------------------------
+# ============================================================
+# MAIN SYSTEM
+# ============================================================
 
-rainfall_values = []
+def main():
 
-for record in rainfall_data:
-    rainfall_values.append(record[2])
-
-
-# -----------------------------------
-# Step 3: Forecast next 3 hours
-# -----------------------------------
-
-forecasts = forecast_next_3_hours(rainfall_values)
-
-
-# -----------------------------------
-# Process each forecast hour
-# -----------------------------------
-
-for hour, forecast in enumerate(forecasts, start=1):
-
-    print("\n======================================")
-    print("          HOUR", hour, "FORECAST")
+    print("======================================")
+    print("   URBAN FLOOD NOWCASTING SYSTEM")
     print("======================================")
 
-    # Forecast rainfall
-    print("\nForecast rainfall:", forecast, "mm")
+    # --------------------------------------------------------
+    # STEP 1: LOAD SPATIAL RAINFALL
+    # --------------------------------------------------------
 
+    rainfall_forecast = get_spatial_rainfall_forecast()
 
-    # -----------------------------------
-    # Step 4: Calculate forecast runoff
-    # -----------------------------------
+    if not validate_rainfall_forecast(
+        rainfall_forecast
+    ):
+        print("ERROR: Invalid rainfall forecast.")
+        return
 
-    runoff_coefficient = 0.8
-
-    forecast_runoff = calculate_runoff(
-        forecast,
-        runoff_coefficient
+    print(
+        "\nSpatial rainfall forecast "
+        "loaded successfully."
     )
 
-    print("Forecast runoff:", forecast_runoff, "mm")
+    # --------------------------------------------------------
+    # STEP 3: TERRAIN
+    # --------------------------------------------------------
 
+    print_dem(DEM)
 
-    # -----------------------------------
-    # Step 5: Create runoff grid
-    # -----------------------------------
+    flow_map = calculate_flow_direction(DEM)
 
-    runoff_grid = [
-        [forecast_runoff, forecast_runoff, forecast_runoff, forecast_runoff],
-        [forecast_runoff, forecast_runoff, forecast_runoff, forecast_runoff],
-        [forecast_runoff, forecast_runoff, forecast_runoff, forecast_runoff],
-        [forecast_runoff, forecast_runoff, forecast_runoff, forecast_runoff]
-    ]
-
-
-    # -----------------------------------
-    # Step 6: Terrain accumulation
-    # -----------------------------------
-
-    accumulation = calculate_accumulation(runoff_grid)
-
-    print("\nAccumulated runoff:")
-
-    for row in accumulation:
-        print(row)
-
-
-    # -----------------------------------
-    # Step 7: Drainage
-    # -----------------------------------
-
-    drainage_capacity = 100
-
-    excess_water = calculate_excess_water(
-        accumulation,
-        drainage_capacity
+    print_flow_direction(
+        flow_map,
+        DEM
     )
 
-    print("\nExcess water:")
+    # --------------------------------------------------------
+    # STEP 4: DRAINAGE
+    # --------------------------------------------------------
 
-    for row in excess_water:
-        print(row)
-
-
-    # -----------------------------------
-    # Step 8: Flood risk
-    # -----------------------------------
-
-    risk_grid = calculate_flood_risk(excess_water)
-
-    print("\nFlood risk:")
-
-    for row in risk_grid:
-        print(row)
-
-
-    # -----------------------------------
-    # Step 9: Flood depth
-    # -----------------------------------
-
-    depth_grid = calculate_flood_depth(
-        excess_water,
-        depth_factor=0.01
+    print_drainage_capacity(
+        DRAINAGE_CAPACITY_GRID
     )
 
-    print("\nEstimated flood depth:")
+    # --------------------------------------------------------
+    # ROUTING LOCATIONS
+    # --------------------------------------------------------
 
-    for row in depth_grid:
-        print(row)
+    print("\nRouting Configuration:")
+
+    print(
+        f"Start        : {ROUTE_START}"
+    )
+
+    print(
+        f"Destination  : {ROUTE_DESTINATION}"
+    )
+
+    # --------------------------------------------------------
+    # PROCESS EACH FORECAST HOUR
+    # --------------------------------------------------------
+
+    for hour in range(1, 4):
+
+        print("\n")
+        print("======================================")
+        print(
+            f"          FORECAST HOUR +{hour}"
+        )
+        print("======================================")
+
+        # ----------------------------------------------------
+        # STEP 1: SPATIAL RAINFALL
+        # ----------------------------------------------------
+
+        rainfall_grid = rainfall_forecast[hour]
+
+        print("\nRainfall Grid (mm):")
+
+        for row in rainfall_grid:
+
+            print(
+                "  ".join(
+                    f"{value:6.1f}"
+                    for value in row
+                )
+            )
+
+        # ----------------------------------------------------
+        # STEP 2: SPATIAL RUNOFF
+        # ----------------------------------------------------
+
+        runoff_grid = calculate_spatial_runoff(
+            rainfall_grid
+        )
+
+        print("\nSpatial Runoff Grid:")
+
+        for row in runoff_grid:
+
+            print(
+                "  ".join(
+                    f"{value:8.2f}"
+                    for value in row
+                )
+            )
+
+        # ----------------------------------------------------
+        # STEP 3: TERRAIN / ACCUMULATION
+        # ----------------------------------------------------
+
+        accumulation_grid = calculate_accumulation(
+            runoff_grid,
+            DEM
+        )
+
+        print_accumulation_grid(
+            accumulation_grid
+        )
+
+        # ----------------------------------------------------
+        # STEP 4: DRAINAGE
+        # ----------------------------------------------------
+
+        excess_water_grid = calculate_excess_water(
+            accumulation_grid,
+            DRAINAGE_CAPACITY_GRID
+        )
+
+        print_excess_water(
+            excess_water_grid
+        )
+
+        # ----------------------------------------------------
+        # STEP 5: FLOOD RISK
+        # ----------------------------------------------------
+
+        risk_grid = calculate_flood_risk(
+            excess_water_grid
+        )
+
+        print_risk_grid(
+            risk_grid
+        )
+
+        # ----------------------------------------------------
+        # RISK SCORE
+        # ----------------------------------------------------
+
+        risk_score_grid = calculate_risk_score(
+            excess_water_grid
+        )
+
+        print_risk_score_grid(
+            risk_score_grid
+        )
+
+        # ----------------------------------------------------
+        # FLOOD DEPTH
+        # ----------------------------------------------------
+
+        depth_grid = calculate_flood_depth(
+            excess_water_grid,
+            DEPTH_FACTOR
+        )
+
+        print_depth_grid(
+            depth_grid
+        )
+
+        # ----------------------------------------------------
+        # STEP 7: SAFE ROUTING
+        # ----------------------------------------------------
+
+        route, route_cost = find_safest_route(
+            risk_grid,
+            ROUTE_START,
+            ROUTE_DESTINATION
+        )
+
+        print_route(
+            route,
+            route_cost
+        )
+
+        # ----------------------------------------------------
+        # ROUTE SUMMARY
+        # ----------------------------------------------------
+
+        if route:
+
+            summary = calculate_route_summary(
+                route,
+                risk_grid
+            )
+
+            print("\nRoute Summary:")
+
+            print(
+                f"Route Length : "
+                f"{summary['route_length']} cells"
+            )
+
+            print(
+                f"LOW Cells    : "
+                f"{summary['low_cells']}"
+            )
+
+            print(
+                f"MEDIUM Cells : "
+                f"{summary['medium_cells']}"
+            )
+
+            print(
+                f"HIGH Cells   : "
+                f"{summary['high_cells']}"
+            )
+
+            print(
+                f"SEVERE Cells : "
+                f"{summary['severe_cells']}"
+            )
+
+        else:
+
+            print(
+                "\nWARNING: No safe route "
+                "is available."
+            )
+
+    # --------------------------------------------------------
+    # COMPLETE
+    # --------------------------------------------------------
+
+    print("\n======================================")
+    print("       FLOOD ANALYSIS COMPLETE")
+    print("======================================")
 
 
-print("\n======================================")
-print("       3-HOUR FORECAST COMPLETE")
-print("======================================")
+# ============================================================
+# PROGRAM ENTRY POINT
+# ============================================================
+
+if __name__ == "__main__":
+    main()
+

@@ -1,6 +1,8 @@
 # terrain.py
 
-dem = [
+# Simple 4x4 Digital Elevation Model (DEM)
+# Higher value = higher elevation
+DEM = [
     [100, 102, 105, 107],
     [98,  100, 103, 105],
     [95,  97,  99, 101],
@@ -8,67 +10,110 @@ dem = [
 ]
 
 
-def get_flow_direction(row, col):
+def get_neighbors(row, col, rows, cols):
     """
-    Find the lowest neighboring cell for a given DEM cell.
-    """
-
-    rows = len(dem)
-    cols = len(dem[0])
-
-    current_elevation = dem[row][col]
-
-    lowest_elevation = current_elevation
-    flow_cell = None
-
-    # Check all 8 neighboring cells
-    for dr in [-1, 0, 1]:
-        for dc in [-1, 0, 1]:
-
-            # Skip the current cell
-            if dr == 0 and dc == 0:
-                continue
-
-            new_row = row + dr
-            new_col = col + dc
-
-            # Make sure the neighbor is inside the DEM
-            if 0 <= new_row < rows and 0 <= new_col < cols:
-
-                neighbor_elevation = dem[new_row][new_col]
-
-                # Find a lower neighboring cell
-                if neighbor_elevation < lowest_elevation:
-                    lowest_elevation = neighbor_elevation
-                    flow_cell = (new_row, new_col)
-
-    return flow_cell
-
-
-# Test
-if __name__ == "__main__":
-
-    print("Terrain elevation:")
-
-    for row in dem:
-        print(row)
-
-def calculate_accumulation(runoff_grid):
-    """
-    Calculate how runoff accumulates as it flows downhill.
-
-    runoff_grid must have the same dimensions as the DEM.
+    Return all valid 8-directional neighboring cells.
+    Includes:
+    - Up
+    - Down
+    - Left
+    - Right
+    - 4 diagonals
     """
 
-    rows = len(dem)
-    cols = len(dem[0])
-
-    # Start with the local runoff at every cell
-    accumulation = [
-        row[:] for row in runoff_grid
+    directions = [
+        (-1, -1), (-1, 0), (-1, 1),
+        (0, -1),           (0, 1),
+        (1, -1),  (1, 0),  (1, 1)
     ]
 
-    # Process higher cells before lower cells
+    neighbors = []
+
+    for dr, dc in directions:
+        nr = row + dr
+        nc = col + dc
+
+        if 0 <= nr < rows and 0 <= nc < cols:
+            neighbors.append((nr, nc))
+
+    return neighbors
+
+
+def calculate_flow_direction(dem=None):
+    """
+    Determine lower neighboring cells for every grid cell.
+
+    Water is allowed to flow only from a higher cell
+    toward a lower elevation cell.
+
+    Returns:
+        flow_map[row][col] = list of lower neighboring cells
+    """
+
+    if dem is None:
+        dem = DEM
+
+    rows = len(dem)
+    cols = len(dem[0])
+
+    flow_map = [[[] for _ in range(cols)] for _ in range(rows)]
+
+    for row in range(rows):
+        for col in range(cols):
+
+            current_elevation = dem[row][col]
+
+            neighbors = get_neighbors(
+                row,
+                col,
+                rows,
+                cols
+            )
+
+            lower_neighbors = []
+
+            for nr, nc in neighbors:
+
+                if dem[nr][nc] < current_elevation:
+                    lower_neighbors.append((nr, nc))
+
+            flow_map[row][col] = lower_neighbors
+
+    return flow_map
+
+
+def calculate_accumulation(runoff_grid, dem=None):
+    """
+    Calculate spatial water accumulation.
+
+    Water starts as runoff in each cell.
+
+    Each cell sends its available water equally
+    to all lower neighboring cells.
+
+    Cells with no lower neighbor retain the water,
+    representing local low points / sinks.
+
+    Returns:
+        accumulation_grid
+    """
+
+    if dem is None:
+        dem = DEM
+
+    rows = len(dem)
+    cols = len(dem[0])
+
+    # Start with runoff as the initial amount of water
+    accumulation = [
+        [float(runoff_grid[r][c]) for c in range(cols)]
+        for r in range(rows)
+    ]
+
+    flow_map = calculate_flow_direction(dem)
+
+    # Process cells from highest elevation to lowest elevation.
+    # This allows upstream water to reach downstream cells.
     cells = []
 
     for row in range(rows):
@@ -77,15 +122,84 @@ def calculate_accumulation(runoff_grid):
 
     cells.sort(reverse=True)
 
-    # Send accumulated water to the next lower cell
     for elevation, row, col in cells:
 
-        flow_cell = get_flow_direction(row, col)
+        downstream_cells = flow_map[row][col]
 
-        if flow_cell is not None:
-            next_row, next_col = flow_cell
+        # No lower neighboring cell:
+        # water remains in this location.
+        if not downstream_cells:
+            continue
 
-            accumulation[next_row][next_col] += accumulation[row][col]
+        current_water = accumulation[row][col]
+
+        # Split water equally among all lower neighbors.
+        flow_amount = current_water / len(downstream_cells)
+
+        for nr, nc in downstream_cells:
+            accumulation[nr][nc] += flow_amount
 
     return accumulation
+
+
+def print_dem(dem=None):
+    """
+    Print the Digital Elevation Model.
+    """
+
+    if dem is None:
+        dem = DEM
+
+    print("\nTerrain Elevation (DEM):")
+
+    for row in dem:
+        print("  ".join(f"{value:6.1f}" for value in row))
+
+
+def print_flow_direction(flow_map, dem=None):
+    """
+    Print simplified flow information.
+    """
+
+    if dem is None:
+        dem = DEM
+
+    print("\nTerrain Flow Direction:")
+
+    rows = len(dem)
+    cols = len(dem[0])
+
+    for row in range(rows):
+        for col in range(cols):
+
+            current = (row, col)
+            destinations = flow_map[row][col]
+
+            if destinations:
+                destination_text = ", ".join(
+                    f"({r},{c})" for r, c in destinations
+                )
+
+                print(
+                    f"Cell ({row},{col}) "
+                    f"elev={dem[row][col]} "
+                    f"-> {destination_text}"
+                )
+            else:
+                print(
+                    f"Cell ({row},{col}) "
+                    f"elev={dem[row][col]} "
+                    f"-> LOW POINT / SINK"
+                )
+
+
+def print_accumulation_grid(accumulation_grid):
+    """
+    Print the final accumulated water grid.
+    """
+
+    print("\nWater Accumulation:")
+
+    for row in accumulation_grid:
+        print("  ".join(f"{value:8.2f}" for value in row))
 

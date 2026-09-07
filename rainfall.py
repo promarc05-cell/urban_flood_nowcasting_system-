@@ -1,70 +1,167 @@
-import sqlite3
-import requests
-from datetime import datetime
+# rainfall.py
+"""
+Spatial rainfall input for the Urban Flood Nowcasting System.
 
-def update_rainfall_from_api(db_path="flood.db"):
+Current prototype:
+    Generates deterministic radar-like rainfall grids for the next 3 hours.
+
+Future:
+    The synthetic rainfall generator can be replaced by a real Doppler
+    Weather Radar API without changing the downstream flood model.
+"""
+
+from typing import Dict, List
+
+
+# ---------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------
+
+GRID_ROWS = 4
+GRID_COLS = 4
+FORECAST_HOURS = 3
+
+
+# ---------------------------------------------------------
+# Prototype spatial rainfall
+# ---------------------------------------------------------
+
+def get_spatial_rainfall_forecast() -> Dict[int, List[List[float]]]:
     """
-    Fetches the last 6 hours of real precipitation data from Open-Meteo API
-    and updates the SQLite database.
+    Return rainfall forecast for the next 3 hours as spatial grids.
+
+    Each grid cell represents a different location in the city.
+
+    Units:
+        mm of rainfall during that forecast hour.
+
+    Returns:
+        {
+            1: [[...], [...], [...], [...]],
+            2: [[...], [...], [...], [...]],
+            3: [[...], [...], [...], [...]]
+        }
     """
-    # Change these three variables to test different cities!
-    city_name = "Mumbai"
-    lat = 19.07
-    lon = 72.87
-    
-    # Open-Meteo URL
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&past_hours=6&hourly=precipitation&timezone=auto"
-    
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        
-        times = data['hourly']['time'][:7]
-        precip = data['hourly']['precipitation'][:7]
-        
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM rainfall")
-        
-        for t, p in zip(times, precip):
-            dt = datetime.fromisoformat(t).strftime('%Y-%m-%d %H:%M')
-            cursor.execute(
-                "INSERT INTO rainfall (time, location, rainfall_mm) VALUES (?, ?, ?)",
-                (dt, city_name, p)  # <-- Now it uses the dynamic city name
+
+    rainfall_forecast = {
+
+        # ---------------------------------------------
+        # Hour +1
+        # ---------------------------------------------
+        1: [
+            [20, 25, 32, 28],
+            [30, 42, 55, 47],
+            [25, 48, 68, 58],
+            [15, 28, 40, 35]
+        ],
+
+        # ---------------------------------------------
+        # Hour +2
+        # ---------------------------------------------
+        2: [
+            [28, 34, 42, 38],
+            [38, 52, 65, 56],
+            [32, 60, 82, 70],
+            [20, 35, 50, 44]
+        ],
+
+        # ---------------------------------------------
+        # Hour +3
+        # ---------------------------------------------
+        3: [
+            [24, 30, 37, 34],
+            [34, 47, 60, 52],
+            [28, 55, 76, 65],
+            [18, 30, 44, 39]
+        ]
+    }
+
+    return rainfall_forecast
+
+
+# ---------------------------------------------------------
+# Validation
+# ---------------------------------------------------------
+
+def validate_rainfall_forecast(
+    rainfall_forecast: Dict[int, List[List[float]]]
+) -> bool:
+    """
+    Validate that the rainfall forecast has:
+
+    - exactly 3 forecast hours
+    - correct grid dimensions
+    - non-negative rainfall values
+    """
+
+    # Check forecast hours
+    expected_hours = {1, 2, 3}
+
+    if set(rainfall_forecast.keys()) != expected_hours:
+        raise ValueError(
+            "Rainfall forecast must contain exactly Hour +1, +2 and +3."
+        )
+
+    # Check each grid
+    for hour, grid in rainfall_forecast.items():
+
+        if len(grid) != GRID_ROWS:
+            raise ValueError(
+                f"Hour +{hour}: expected {GRID_ROWS} rows."
             )
-            
-        conn.commit()
-        conn.close()
-        
-    except Exception as e:
-        print(f"⚠️ Error fetching API data (falling back to existing DB data): {e}")
+
+        for row in grid:
+
+            if len(row) != GRID_COLS:
+                raise ValueError(
+                    f"Hour +{hour}: expected {GRID_COLS} columns."
+                )
+
+            for rainfall in row:
+
+                if rainfall < 0:
+                    raise ValueError(
+                        f"Hour +{hour}: rainfall cannot be negative."
+                    )
+
+    return True
 
 
-def get_rainfall_data(db_path="flood.db"):
+# ---------------------------------------------------------
+# Helper function
+# ---------------------------------------------------------
+
+def print_rainfall_forecast(
+    rainfall_forecast: Dict[int, List[List[float]]]
+):
     """
-    Updates the database with live data, then retrieves records in chronological order.
-    Returns the exact tuple format expected by main.py: (time, location, rainfall_mm)
+    Print the spatial rainfall forecast in a readable format.
     """
-    # 1. Fetch fresh data and update DB
-    update_rainfall_from_api(db_path)
-    
-    # 2. Read from DB
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # We must select all 3 columns to keep main.py happy!
-    cursor.execute("SELECT time, location, rainfall_mm FROM rainfall ORDER BY time ASC")
-    rows = cursor.fetchall()
-    conn.close()
-    
-    return rows
 
-# Test the API independently
+    for hour in range(1, FORECAST_HOURS + 1):
+
+        print("\n--------------------------------------")
+        print(f"RAIN-FALL FORECAST: HOUR +{hour}")
+        print("--------------------------------------")
+
+        grid = rainfall_forecast[hour]
+
+        for row in grid:
+            print("  ".join(f"{value:5.1f}" for value in row))
+
+        print("Unit: mm")
+
+
+# ---------------------------------------------------------
+# Test module
+# ---------------------------------------------------------
+
 if __name__ == "__main__":
-    print("Fetching live data from Open-Meteo...")
-    live_data = get_rainfall_data()
-    print("Live data format:")
-    for row in live_data:
-        print(row)
+
+    forecast = get_spatial_rainfall_forecast()
+
+    validate_rainfall_forecast(forecast)
+
+    print_rainfall_forecast(forecast)
+
+    print("\nSpatial rainfall input: PASS")

@@ -1,24 +1,119 @@
 # drainage.py
 
-def calculate_excess_water(accumulation_grid, drainage_capacity):
+# ============================================================
+# SPATIAL DRAINAGE CAPACITY
+# ============================================================
+#
+# Higher value  -> better drainage
+# Lower value   -> poorer drainage
+#
+# This is a prototype assumption.
+# In a real system, these values would come from drainage/
+# stormwater infrastructure data.
+# ============================================================
+
+DRAINAGE_CAPACITY_GRID = [
+    [120, 110, 100, 90],
+    [110, 100, 90, 70],
+    [90,  80,  60, 50],
+    [70,  60,  40, 30]
+]
+
+
+def calculate_excess_water(
+    water_grid,
+    drainage_capacity_grid=None
+):
     """
-    Calculate the amount of water remaining
-    after drainage.
+    Calculate excess water for every grid cell.
+
+    Formula:
+
+        Excess Water =
+            max(Accumulated Water - Drainage Capacity, 0)
+
+    Parameters:
+        water_grid:
+            2D grid containing accumulated water.
+
+        drainage_capacity_grid:
+            2D grid containing drainage capacity.
+
+    Returns:
+        2D grid containing excess water.
     """
+
+    if drainage_capacity_grid is None:
+        drainage_capacity_grid = DRAINAGE_CAPACITY_GRID
+
+    rows = len(water_grid)
+    cols = len(water_grid[0])
+
+    # Validate dimensions
+    if len(drainage_capacity_grid) != rows:
+        raise ValueError(
+            "Water grid and drainage grid must have "
+            "the same number of rows."
+        )
+
+    for row in drainage_capacity_grid:
+        if len(row) != cols:
+            raise ValueError(
+                "Water grid and drainage grid must have "
+                "the same number of columns."
+            )
 
     excess_water = []
 
-    for row in accumulation_grid:
+    for r in range(rows):
 
         excess_row = []
 
-        for water in row:
+        for c in range(cols):
 
-            # Water above drainage capacity becomes excess
-            excess = max(water - drainage_capacity, 0)
+            water = water_grid[r][c]
+            capacity = drainage_capacity_grid[r][c]
+
+            excess = max(water - capacity, 0)
 
             excess_row.append(excess)
 
         excess_water.append(excess_row)
 
     return excess_water
+
+
+def print_drainage_capacity(
+    drainage_capacity_grid=None
+):
+    """
+    Print the spatial drainage capacity grid.
+    """
+
+    if drainage_capacity_grid is None:
+        drainage_capacity_grid = DRAINAGE_CAPACITY_GRID
+
+    print("\nDrainage Capacity:")
+
+    for row in drainage_capacity_grid:
+        print(
+            "  ".join(
+                f"{value:8.2f}" for value in row
+            )
+        )
+
+
+def print_excess_water(excess_water_grid):
+    """
+    Print the excess water grid.
+    """
+
+    print("\nExcess Water After Drainage:")
+
+    for row in excess_water_grid:
+        print(
+            "  ".join(
+                f"{value:8.2f}" for value in row
+            )
+        )
+
