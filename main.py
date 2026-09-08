@@ -6,302 +6,216 @@ from rainfall import (
 )
 
 from runoff import calculate_spatial_runoff
-
-from terrain import (
-    DEM,
-    calculate_flow_direction,
-    calculate_accumulation,
-    print_dem,
-    print_flow_direction,
-    print_accumulation_grid
-)
-
-from drainage import (
-    DRAINAGE_CAPACITY_GRID,
-    calculate_excess_water,
-    print_drainage_capacity,
-    print_excess_water
-)
-
+from terrain import calculate_accumulation
+from drainage import calculate_excess_water
 from flood import (
     calculate_flood_risk,
-    calculate_flood_depth,
-    calculate_risk_score,
-    print_risk_grid,
-    print_depth_grid,
-    print_risk_score_grid
+    calculate_flood_depth
 )
 
-from routing import (
-    find_safest_route,
-    calculate_route_summary,
-    print_route
+from dem import load_dem
+
+
+def get_max_value(grid):
+    """Return the maximum value from a 2D grid."""
+
+    return max(
+        max(row)
+        for row in grid
+    )
+
+
+print("======================================")
+print("   URBAN FLOOD NOWCASTING SYSTEM")
+print("======================================\n")
+
+
+# ============================================================
+# STEP 1 — RAINFALL FORECAST
+# ============================================================
+
+print("Loading spatial rainfall forecast...")
+
+rainfall_forecast = (
+    get_spatial_rainfall_forecast()
+)
+
+validate_rainfall_forecast(
+    rainfall_forecast
+)
+
+print(
+    "\nSpatial rainfall forecast loaded."
+)
+
+print(
+    "Forecast grid: 20 × 20"
 )
 
 
 # ============================================================
-# CONFIGURATION
+# STEP 2 — REAL DEM
 # ============================================================
 
-# Prototype conversion factor.
-# This is NOT a calibrated hydraulic relationship.
-DEPTH_FACTOR = 0.01
+print(
+    "\nLoading real Central Kolkata DEM..."
+)
 
+elevation_grid = load_dem()
 
-# Example routing locations.
-# Format: (row, column)
-
-ROUTE_START = (3, 0)
-ROUTE_DESTINATION = (0, 3)
+print(
+    "\nReal DEM loaded successfully."
+)
 
 
 # ============================================================
-# MAIN SYSTEM
+# STEP 3 — PROCESS EACH FORECAST HOUR
 # ============================================================
 
-def main():
+for hour in range(
+    1,
+    len(rainfall_forecast) + 1
+):
 
+    print("\n")
     print("======================================")
-    print("   URBAN FLOOD NOWCASTING SYSTEM")
+    print(
+        f"        FORECAST HOUR {hour}"
+    )
     print("======================================")
 
-    # --------------------------------------------------------
-    # STEP 1: LOAD SPATIAL RAINFALL
-    # --------------------------------------------------------
 
-    rainfall_forecast = get_spatial_rainfall_forecast()
+    # ========================================================
+    # RAINFALL
+    # ========================================================
 
-    if not validate_rainfall_forecast(
-        rainfall_forecast
-    ):
-        print("ERROR: Invalid rainfall forecast.")
-        return
-
-    print(
-        "\nSpatial rainfall forecast "
-        "loaded successfully."
-    )
-
-    # --------------------------------------------------------
-    # STEP 3: TERRAIN
-    # --------------------------------------------------------
-
-    print_dem(DEM)
-
-    flow_map = calculate_flow_direction(DEM)
-
-    print_flow_direction(
-        flow_map,
-        DEM
-    )
-
-    # --------------------------------------------------------
-    # STEP 4: DRAINAGE
-    # --------------------------------------------------------
-
-    print_drainage_capacity(
-        DRAINAGE_CAPACITY_GRID
-    )
-
-    # --------------------------------------------------------
-    # ROUTING LOCATIONS
-    # --------------------------------------------------------
-
-    print("\nRouting Configuration:")
-
-    print(
-        f"Start        : {ROUTE_START}"
+    rainfall_grid = (
+        rainfall_forecast[hour]
     )
 
     print(
-        f"Destination  : {ROUTE_DESTINATION}"
+        "\nRainfall grid loaded."
     )
 
-    # --------------------------------------------------------
-    # PROCESS EACH FORECAST HOUR
-    # --------------------------------------------------------
 
-    for hour in range(1, 4):
+    # ========================================================
+    # RUNOFF
+    # ========================================================
 
-        print("\n")
-        print("======================================")
-        print(
-            f"          FORECAST HOUR +{hour}"
-        )
-        print("======================================")
-
-        # ----------------------------------------------------
-        # STEP 1: SPATIAL RAINFALL
-        # ----------------------------------------------------
-
-        rainfall_grid = rainfall_forecast[hour]
-
-        print("\nRainfall Grid (mm):")
-
-        for row in rainfall_grid:
-
-            print(
-                "  ".join(
-                    f"{value:6.1f}"
-                    for value in row
-                )
-            )
-
-        # ----------------------------------------------------
-        # STEP 2: SPATIAL RUNOFF
-        # ----------------------------------------------------
-
-        runoff_grid = calculate_spatial_runoff(
+    runoff_grid = (
+        calculate_spatial_runoff(
             rainfall_grid
         )
+    )
 
-        print("\nSpatial Runoff Grid:")
+    print(
+        "Runoff calculated successfully."
+    )
 
-        for row in runoff_grid:
 
-            print(
-                "  ".join(
-                    f"{value:8.2f}"
-                    for value in row
-                )
-            )
+    # ========================================================
+    # TERRAIN
+    # ========================================================
 
-        # ----------------------------------------------------
-        # STEP 3: TERRAIN / ACCUMULATION
-        # ----------------------------------------------------
-
-        accumulation_grid = calculate_accumulation(
+    accumulation_grid = (
+        calculate_accumulation(
             runoff_grid,
-            DEM
+            elevation_grid
         )
+    )
 
-        print_accumulation_grid(
+    print(
+        "Water accumulation calculated "
+        "using real DEM."
+    )
+
+
+    # ========================================================
+    # DRAINAGE
+    # ========================================================
+
+    excess_water_grid = (
+        calculate_excess_water(
             accumulation_grid
         )
+    )
 
-        # ----------------------------------------------------
-        # STEP 4: DRAINAGE
-        # ----------------------------------------------------
+    print(
+        "Drainage/excess water calculated."
+    )
 
-        excess_water_grid = calculate_excess_water(
-            accumulation_grid,
-            DRAINAGE_CAPACITY_GRID
-        )
 
-        print_excess_water(
+    # ========================================================
+    # FLOOD RISK
+    # ========================================================
+
+    risk_grid = (
+        calculate_flood_risk(
             excess_water_grid
         )
+    )
 
-        # ----------------------------------------------------
-        # STEP 5: FLOOD RISK
-        # ----------------------------------------------------
+    print(
+        "Flood risk calculated."
+    )
 
-        risk_grid = calculate_flood_risk(
+
+    # ========================================================
+    # FLOOD DEPTH
+    # ========================================================
+
+    depth_grid = (
+        calculate_flood_depth(
             excess_water_grid
         )
+    )
 
-        print_risk_grid(
-            risk_grid
-        )
+    print(
+        "Flood depth calculated."
+    )
 
-        # ----------------------------------------------------
-        # RISK SCORE
-        # ----------------------------------------------------
 
-        risk_score_grid = calculate_risk_score(
-            excess_water_grid
-        )
+    # ========================================================
+    # RESULT SUMMARY
+    # ========================================================
 
-        print_risk_score_grid(
-            risk_score_grid
-        )
+    print("\n--------------------------------------")
+    print(
+        f"RESULT SUMMARY — HOUR +{hour}"
+    )
+    print("--------------------------------------")
 
-        # ----------------------------------------------------
-        # FLOOD DEPTH
-        # ----------------------------------------------------
+    print(
+        f"Maximum rainfall: "
+        f"{get_max_value(rainfall_grid):.2f} mm"
+    )
 
-        depth_grid = calculate_flood_depth(
-            excess_water_grid,
-            DEPTH_FACTOR
-        )
+    print(
+        f"Maximum runoff: "
+        f"{get_max_value(runoff_grid):.2f} mm"
+    )
 
-        print_depth_grid(
-            depth_grid
-        )
+    print(
+        f"Maximum accumulation: "
+        f"{get_max_value(accumulation_grid):.2f} mm"
+    )
 
-        # ----------------------------------------------------
-        # STEP 7: SAFE ROUTING
-        # ----------------------------------------------------
+    print(
+        f"Maximum excess water: "
+        f"{get_max_value(excess_water_grid):.2f} mm"
+    )
 
-        route, route_cost = find_safest_route(
-            risk_grid,
-            ROUTE_START,
-            ROUTE_DESTINATION
-        )
-
-        print_route(
-            route,
-            route_cost
-        )
-
-        # ----------------------------------------------------
-        # ROUTE SUMMARY
-        # ----------------------------------------------------
-
-        if route:
-
-            summary = calculate_route_summary(
-                route,
-                risk_grid
-            )
-
-            print("\nRoute Summary:")
-
-            print(
-                f"Route Length : "
-                f"{summary['route_length']} cells"
-            )
-
-            print(
-                f"LOW Cells    : "
-                f"{summary['low_cells']}"
-            )
-
-            print(
-                f"MEDIUM Cells : "
-                f"{summary['medium_cells']}"
-            )
-
-            print(
-                f"HIGH Cells   : "
-                f"{summary['high_cells']}"
-            )
-
-            print(
-                f"SEVERE Cells : "
-                f"{summary['severe_cells']}"
-            )
-
-        else:
-
-            print(
-                "\nWARNING: No safe route "
-                "is available."
-            )
-
-    # --------------------------------------------------------
-    # COMPLETE
-    # --------------------------------------------------------
-
-    print("\n======================================")
-    print("       FLOOD ANALYSIS COMPLETE")
-    print("======================================")
+    print(
+        f"Maximum flood depth: "
+        f"{get_max_value(depth_grid):.2f}"
+    )
 
 
 # ============================================================
-# PROGRAM ENTRY POINT
+# COMPLETE
 # ============================================================
 
-if __name__ == "__main__":
-    main()
-
+print("\n")
+print("======================================")
+print("       NOWCASTING COMPLETED")
+print("======================================")

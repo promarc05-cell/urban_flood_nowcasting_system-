@@ -20,6 +20,25 @@ DRAINAGE_CAPACITY_GRID = [
 ]
 
 
+def _resize_capacity_grid(capacity_grid, rows, cols):
+    """Resize the prototype capacity grid with nearest-neighbor sampling."""
+
+    source_rows = len(capacity_grid)
+    source_cols = len(capacity_grid[0])
+
+    return [
+        [
+            capacity_grid[
+                min(int(r * source_rows / rows), source_rows - 1)
+            ][
+                min(int(c * source_cols / cols), source_cols - 1)
+            ]
+            for c in range(cols)
+        ]
+        for r in range(rows)
+    ]
+
+
 def calculate_excess_water(
     water_grid,
     drainage_capacity_grid=None
@@ -48,6 +67,21 @@ def calculate_excess_water(
 
     rows = len(water_grid)
     cols = len(water_grid[0])
+
+    if isinstance(drainage_capacity_grid, (int, float)):
+        drainage_capacity_grid = [
+            [drainage_capacity_grid for _ in range(cols)]
+            for _ in range(rows)
+        ]
+    elif drainage_capacity_grid is DRAINAGE_CAPACITY_GRID and (
+        len(drainage_capacity_grid) != rows
+        or len(drainage_capacity_grid[0]) != cols
+    ):
+        drainage_capacity_grid = _resize_capacity_grid(
+            drainage_capacity_grid,
+            rows,
+            cols
+        )
 
     # Validate dimensions
     if len(drainage_capacity_grid) != rows:

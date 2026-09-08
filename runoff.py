@@ -3,29 +3,57 @@
 """
 Spatial runoff calculation for the Urban Flood Nowcasting System.
 
-Each grid cell has its own runoff coefficient based on
-land-cover / imperviousness.
+Each grid cell has a runoff coefficient.
 
 Runoff = Rainfall × Runoff Coefficient
+
+For the real-world prototype, the model uses a 20 × 20
+computational grid.
 """
 
-# 4 × 4 land-cover grid
+from config import GRID_ROWS, GRID_COLS
+
+
+# ============================================================
+# RUNOFF COEFFICIENT
+# ============================================================
+
+# Prototype assumption:
 #
-# Values:
-# 0.90 → Highly impervious (roads/concrete)
+# 0.90 → Highly impervious
 # 0.80 → Built-up area
 # 0.50 → Mixed/open area
 # 0.30 → Green/soil area
+#
+# For the current real-world prototype, we use 0.80
+# as a general urban coefficient across the study area.
+#
+# Later this can be replaced with a real land-cover dataset.
+
+DEFAULT_RUNOFF_COEFFICIENT = 0.80
+
+
+# ============================================================
+# CREATE 20 × 20 COEFFICIENT GRID
+# ============================================================
 
 RUNOFF_COEFFICIENT_GRID = [
-    [0.90, 0.80, 0.50, 0.80],
-    [0.90, 0.90, 0.80, 0.50],
-    [0.30, 0.50, 0.90, 0.80],
-    [0.30, 0.50, 0.50, 0.30]
+    [
+        DEFAULT_RUNOFF_COEFFICIENT
+        for _ in range(GRID_COLS)
+    ]
+    for _ in range(GRID_ROWS)
 ]
 
 
-def calculate_runoff(rainfall_mm, runoff_coefficient):
+# ============================================================
+# SINGLE-CELL RUNOFF
+# ============================================================
+
+def calculate_runoff(
+    rainfall_mm,
+    runoff_coefficient
+):
     """
     Calculate runoff for one grid cell.
 
@@ -33,26 +61,48 @@ def calculate_runoff(rainfall_mm, runoff_coefficient):
         Runoff = Rainfall × Runoff Coefficient
 
     Parameters:
-        rainfall_mm: rainfall received by the cell in mm
-        runoff_coefficient: fraction converted to surface runoff
+        rainfall_mm:
+            Rainfall received by the cell in mm.
+
+        runoff_coefficient:
+            Fraction of rainfall converted into
+            surface runoff.
 
     Returns:
-        runoff in mm
+        Runoff in mm.
     """
 
     return rainfall_mm * runoff_coefficient
 
 
+# ============================================================
+# SPATIAL RUNOFF
+# ============================================================
+
 def calculate_spatial_runoff(rainfall_grid):
     """
-    Calculate runoff independently for every grid cell.
+    Calculate runoff independently for every
+    cell in the spatial rainfall grid.
     """
 
     rows = len(rainfall_grid)
     cols = len(rainfall_grid[0])
 
-    if rows != len(RUNOFF_COEFFICIENT_GRID):
-        raise ValueError("Rainfall grid size does not match land-cover grid.")
+    # --------------------------------------------------------
+    # Validate grid size
+    # --------------------------------------------------------
+
+    if rows != GRID_ROWS or cols != GRID_COLS:
+
+        raise ValueError(
+            f"Rainfall grid must be "
+            f"{GRID_ROWS} × {GRID_COLS}."
+        )
+
+
+    # --------------------------------------------------------
+    # Calculate runoff
+    # --------------------------------------------------------
 
     runoff_grid = []
 
@@ -63,23 +113,32 @@ def calculate_spatial_runoff(rainfall_grid):
         for col in range(cols):
 
             rainfall = rainfall_grid[row][col]
-            coefficient = RUNOFF_COEFFICIENT_GRID[row][col]
+
+            coefficient = (
+                RUNOFF_COEFFICIENT_GRID[row][col]
+            )
 
             runoff = calculate_runoff(
                 rainfall,
                 coefficient
             )
 
-            runoff_row.append(round(runoff, 2))
+            runoff_row.append(
+                round(runoff, 2)
+            )
 
         runoff_grid.append(runoff_row)
 
     return runoff_grid
 
 
+# ============================================================
+# PRINT RUNOFF GRID
+# ============================================================
+
 def print_runoff_grid(runoff_grid):
     """
-    Display runoff grid.
+    Display the spatial runoff grid.
     """
 
     print("\n--------------------------------------")
@@ -87,21 +146,40 @@ def print_runoff_grid(runoff_grid):
     print("--------------------------------------")
 
     for row in runoff_grid:
-        print("  ".join(f"{value:6.2f}" for value in row))
 
-    print("Unit: mm")
+        print(
+            "  ".join(
+                f"{value:6.2f}"
+                for value in row
+            )
+        )
 
+    print("\nUnit: mm")
+
+
+# ============================================================
+# TEST
+# ============================================================
 
 if __name__ == "__main__":
 
-    # Example rainfall grid
+    print("======================================")
+    print("       RUNOFF CALCULATION TEST")
+    print("======================================")
+
+    # Create a 20 × 20 test rainfall grid
     rainfall_grid = [
-        [20, 25, 32, 28],
-        [30, 42, 55, 47],
-        [25, 48, 68, 58],
-        [15, 28, 40, 35]
+        [
+            20.0
+            for _ in range(GRID_COLS)
+        ]
+        for _ in range(GRID_ROWS)
     ]
 
-    runoff_grid = calculate_spatial_runoff(rainfall_grid)
+    runoff_grid = calculate_spatial_runoff(
+        rainfall_grid
+    )
 
-    print_runoff_grid(runoff_grid)
+    print_runoff_grid(
+        runoff_grid
+    )
